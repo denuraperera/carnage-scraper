@@ -19,7 +19,7 @@ def save_seen_ids(seen_ids):
         f.write("\n".join(seen_ids))
 
 def send_telegram(title, price, link):
-    msg = f"🔥 **New Carnage Listing Found!**\n\n📌 Title: {title}\n💰 Price: {price}\n\n🔗 Link: {link}"
+    msg = f"🔥 **New Carnage Deal Found!**\n\n📌 Title: {title}\n💰 Price: {price}\n\n🔗 Link: {link}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         r = requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
@@ -33,31 +33,24 @@ async def main():
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        # Mobile Browser Emulation to bypass Facebook Anti-Bot Login Wall
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-            viewport={"width": 390, "height": 844},
-            is_mobile=True
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
         
-        # Using Mobile Marketplace Search URL
-        url = "https://m.facebook.com/marketplace/search/?query=carnage"
-        print(f"Navigating to {url}...")
-        await page.goto(url, wait_until="domcontentloaded")
-        await page.wait_for_timeout(4000)
-
-        # Scroll down to trigger lazy loading
-        await page.evaluate("window.scrollBy(0, 800);")
+        # Search Google for indexable FB Marketplace items directly
+        search_url = "https://www.google.com/search?q=site:facebook.com/marketplace/item+carnage"
+        print("Navigating to Google Search...")
+        await page.goto(search_url, wait_until="domcontentloaded")
         await page.wait_for_timeout(3000)
 
-        # Query all potential listing links
-        links = await page.query_selector_all('a[href*="/marketplace/item/"]')
-        print(f"Found {len(links)} item links on mobile page.")
+        # Extract links matching facebook marketplace items
+        links = await page.query_selector_all('a[href*="facebook.com/marketplace/item/"]')
+        print(f"Found {len(links)} links on Google Search.")
 
         new_found = False
         
-        for link_elem in links[:15]:
+        for link_elem in links[:10]:
             href = await link_elem.get_attribute('href')
             if href:
                 match = re.search(r'/item/(\d+)', href)
@@ -67,19 +60,19 @@ async def main():
                     
                     if item_id not in seen_ids:
                         text = await link_elem.inner_text()
-                        lines = [line.strip() for line in text.split('\n') if line.strip()]
+                        lines = [l.strip() for l in text.split('\n') if l.strip()]
                         
-                        price = lines[0] if len(lines) > 0 else "N/A"
-                        title = lines[1] if len(lines) > 1 else "Carnage Item"
+                        title = lines[0] if len(lines) > 0 else "Carnage Item"
+                        price = "See Link"
                         
-                        print(f"New item: {title} ({price})")
+                        print(f"New item found: {title}")
                         send_telegram(title, price, full_link)
                         seen_ids.add(item_id)
                         new_found = True
 
         if new_found:
             save_seen_ids(seen_ids)
-            print("Saved new IDs.")
+            print("Saved new IDs successfully.")
         else:
             print("No new items found.")
 
