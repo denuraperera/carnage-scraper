@@ -18,8 +18,8 @@ def save_seen_ids(seen_ids):
     with open(SEEN_FILE, "w") as f:
         f.write("\n".join(seen_ids))
 
-def send_telegram(title, price, link):
-    msg = f"🔥 **New Carnage Deal Found!**\n\n📌 Title: {title}\n💰 Price: {price}\n\n🔗 Link: {link}"
+def send_telegram(title, link):
+    msg = f"🔥 **New Carnage Deal Found!**\n\n📌 Title: {title}\n🔗 Link: {link}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         r = requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
@@ -33,26 +33,29 @@ async def main():
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
+        # Using a standard Windows User-Agent
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
         
-        # Search Google for indexable FB Marketplace items directly
-        search_url = "https://www.google.com/search?q=site:facebook.com/marketplace/item+carnage"
-        print("Navigating to Google Search...")
+        # Using BING Search instead of Google (Bing allows GitHub IPs more easily)
+        search_url = "https://www.bing.com/search?q=site:facebook.com/marketplace/item+carnage+sri+lanka"
+        print("Navigating to Bing Search...")
+        
         await page.goto(search_url, wait_until="domcontentloaded")
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(4000)
 
-        # Extract links matching facebook marketplace items
+        # Select all Facebook Marketplace links from Bing results
         links = await page.query_selector_all('a[href*="facebook.com/marketplace/item/"]')
-        print(f"Found {len(links)} links on Google Search.")
+        print(f"Found {len(links)} links on Bing.")
 
         new_found = False
         
         for link_elem in links[:10]:
             href = await link_elem.get_attribute('href')
             if href:
+                # Get the Item ID
                 match = re.search(r'/item/(\d+)', href)
                 if match:
                     item_id = match.group(1)
@@ -62,11 +65,10 @@ async def main():
                         text = await link_elem.inner_text()
                         lines = [l.strip() for l in text.split('\n') if l.strip()]
                         
-                        title = lines[0] if len(lines) > 0 else "Carnage Item"
-                        price = "See Link"
+                        title = lines[0] if len(lines) > 0 else "Carnage Listing"
                         
                         print(f"New item found: {title}")
-                        send_telegram(title, price, full_link)
+                        send_telegram(title, full_link)
                         seen_ids.add(item_id)
                         new_found = True
 
