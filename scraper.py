@@ -55,7 +55,6 @@ async def main():
             viewport={"width": 1280, "height": 800}
         )
 
-        # Inject FB Cookies into browser context
         fb_cookies = parse_cookies(FB_COOKIES_STR)
         if fb_cookies:
             await context.add_cookies(fb_cookies)
@@ -68,12 +67,13 @@ async def main():
         url = "https://www.facebook.com/marketplace/search/?query=carnage"
         print(f"Navigating directly to {url}...")
         
-        await page.goto(url, wait_until="networkidle")
-        await page.wait_for_timeout(4000)
+        # Fixed timeout issue by using domcontentloaded instead of networkidle
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        await page.wait_for_timeout(5000)
 
         # Scroll to load listings
-        await page.evaluate("window.scrollBy(0, 800);")
-        await page.wait_for_timeout(3000)
+        await page.evaluate("window.scrollBy(0, 1000);")
+        await page.wait_for_timeout(4000)
 
         links = await page.query_selector_all('a[href*="/marketplace/item/"]')
         print(f"Found {len(links)} item links on Facebook Marketplace!")
