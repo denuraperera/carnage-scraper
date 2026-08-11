@@ -44,16 +44,27 @@ def parse_cookies(cookie_str):
             })
     return cookies
 
-
 async def main():
     seen_ids = get_seen_ids()
     print(f"Loaded {len(seen_ids)} seen IDs.")
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # 🛠️ Bot Detection මඟහරවා ගැනීමට අවශ්‍ය arguments එකතු කර ඇත
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--window-size=1920,1080"
+            ]
+        )
+        
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800}
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US"
         )
 
         fb_cookies = parse_cookies(FB_COOKIES_STR)
@@ -71,13 +82,19 @@ async def main():
         await page.goto(url, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(5000)
 
+        # අයිටම්ස් ලෝඩ් වන තෙක් සුළු වේලාවක් බලා සිටීම
+        try:
+            await page.wait_for_selector('a[href*="/marketplace/item/"]', timeout=15000)
+        except:
+            print("Timeout waiting for items to appear, trying to scroll anyway...")
+
         # 🚀 සියලුම අයිටම්ස් ලෝඩ් කරගන්න පේජ් එක කිහිප වාරයක් පල්ලෙහාට ස්ක්‍රෝල් කිරීම
         print("Scrolling to load all listings...")
-        for _ in range(5):  # 5 වාරයක් පල්ලෙහාට ස්ක්‍රෝල් කරයි (අවශ්‍ය නම් මෙහි අගය වැඩි කළ හැක)
+        for _ in range(5):  # 5 වාරයක් පල්ලෙහාට ස්ක්‍රෝල් කරයි
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
-            await page.wait_for_timeout(3000) # අලුත් අයිටම්ස් ලෝඩ් වෙන්න තත්පර 3ක් ඉඳියි
+            await page.wait_for_timeout(3000)
 
-        # දැන් සියලුම ලින්ක්ස් එකතු කරගැනීම ([:15] සීමාව ඉවත් කර ඇත)
+        # දැන් සියලුම ලින්ක්ස් එකතු කරගැනීම
         links = await page.query_selector_all('a[href*="/marketplace/item/"]')
         print(f"Found {len(links)} total item links on Facebook Marketplace!")
 
@@ -110,70 +127,6 @@ async def main():
             print("No new items found.")
 
         await browser.close()
-
-# async def main():
-#     seen_ids = get_seen_ids()
-#     print(f"Loaded {len(seen_ids)} seen IDs.")
-
-#     async with async_playwright() as p:
-#         browser = await p.chromium.launch(headless=True)
-#         context = await browser.new_context(
-#             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-#             viewport={"width": 1280, "height": 800}
-#         )
-
-#         fb_cookies = parse_cookies(FB_COOKIES_STR)
-#         if fb_cookies:
-#             await context.add_cookies(fb_cookies)
-#             print("Successfully injected FB Session Cookies!")
-#         else:
-#             print("Warning: FB_COOKIES secret not found or empty.")
-
-#         page = await context.new_page()
-        
-#         url = "https://www.facebook.com/marketplace/search/?query=carnage"
-#         print(f"Navigating directly to {url}...")
-        
-#         # Fixed timeout issue by using domcontentloaded instead of networkidle
-#         await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-#         await page.wait_for_timeout(5000)
-
-#         # Scroll to load listings
-#         await page.evaluate("window.scrollBy(0, 1000);")
-#         await page.wait_for_timeout(4000)
-
-#         links = await page.query_selector_all('a[href*="/marketplace/item/"]')
-#         print(f"Found {len(links)} item links on Facebook Marketplace!")
-
-#         new_found = False
-        
-#         for link_elem in links[:15]:
-#             href = await link_elem.get_attribute('href')
-#             if href:
-#                 match = re.search(r'/item/(\d+)', href)
-#                 if match:
-#                     item_id = match.group(1)
-#                     full_link = f"https://www.facebook.com/marketplace/item/{item_id}/"
-                    
-#                     if item_id not in seen_ids:
-#                         text = await link_elem.inner_text()
-#                         lines = [l.strip() for l in text.split('\n') if l.strip()]
-                        
-#                         price = lines[0] if len(lines) > 0 else "N/A"
-#                         title = lines[1] if len(lines) > 1 else "Carnage Item"
-                        
-#                         print(f"New Item Detected: {title} ({price})")
-#                         send_telegram(title, price, full_link)
-#                         seen_ids.add(item_id)
-#                         new_found = True
-
-#         if new_found:
-#             save_seen_ids(seen_ids)
-#             print("Saved new IDs to seen_ids.txt.")
-#         else:
-#             print("No new items found.")
-
-#         await browser.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
